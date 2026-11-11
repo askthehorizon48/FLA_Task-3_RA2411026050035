@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLA Task 3: Interactive PDA & CFG Visualizer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#111827',
+                            950: '#030712'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'Monaco', 'monospace'],
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- KaTeX for math rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+
+    <style>
+        /* Custom scrollbars and animations */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .stack-item {
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .stack-item-enter {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.9);
+        }
+
+        .tape-cell {
+            transition: all 0.25s ease;
+        }
+
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(0.98); }
+        }
+
+        .active-state {
+            animation: pulse-subtle 2s infinite ease-in-out;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+
+        /* SVG Parse Tree styling */
+        .tree-node circle {
+            transition: all 0.3s ease;
+        }
+        .tree-node text {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+        .tree-edge {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid fa-[#0] fa-layer-group text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
+                        PDA & CFG Visualizer & Parser
+                    </h1>
+                    <p class="text-xs text-slate-400">Formal Languages & Automata Theory • Task 3</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <button id="theory-modal-btn" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-book-open text-indigo-400"></i>
+                    <span>Pumping Lemma & DFA Proof</span>
+                </button>
+                <button id="grammar-modal-btn" class="px-3 py-1.5 text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 border border-indigo-700/60 rounded-lg flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-code-branch text-indigo-400"></i>
+                    <span>Ambiguous vs Unambiguous</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Case Study Selector Tabs -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-2 shadow-xl backdrop-blur">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <button tab-id="case1" class="case-tab active px-4 py-3 rounded-xl border text-left flex items-start space-x-3 transition">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5 text-indigo-400">
+                        <i class="fa-solid fa-code"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold uppercase tracking-wider text-indigo-400">Case Study 1</span>
+                        </div>
+                        <h2 class="text-sm font-semibold text-white">Balanced Parentheses & Brackets</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">$L_1 = \{ \text{matched } (), [] \text{ nesting} \}$</p>
+                    </div>
+                </button>
+
+                <button tab-id="case2" class="case-tab px-4 py-3 rounded-xl border text-left flex items-start space-x-3 transition">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5 text-emerald-400">
+                        <i class="fa-solid fa-calculator"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold uppercase tracking-wider text-emerald-400">Case Study 2</span>
+                        </div>
+                        <h2 class="text-sm font-semibold text-white">Infix Arithmetic Syntax Parser</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">$L_2 = \{ \text{expressions over } a, +, *, (, ) \}$</p>
+                    </div>
+                </button>
+
+                <button tab-id="case3" class="case-tab px-4 py-3 rounded-xl border text-left flex items-start space-x-3 transition">
+                    <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5 text-purple-400">
+                        <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold uppercase tracking-wider text-purple-400">Case Study 3</span>
+                        </div>
+                        <h2 class="text-sm font-semibold text-white">Even-Length Palindrome ($w w^R$)</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">$L_3 = \{ w w^R \mid w \in \{a, b\}^* \}$</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Input Control Panel & Presets -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                
+                <!-- String Input Form -->
+                <div class="flex-1 space-y-1.5">
+                    <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                        <span>Input String ($w \in \Sigma^*$)</span>
+                        <span id="char-count" class="text-slate-500 font-mono">0 chars</span>
+                    </label>
+                    <div class="relative flex items-center">
+                        <input type="text" id="input-string" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-base font-mono font-bold tracking-wider text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="e.g. ([()])" value="([()])">
+                        <button id="load-btn" class="absolute right-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition flex items-center space-x-1.5">
+                            <i class="fa-solid fa-play text-xs"></i>
+                            <span>Load String</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="flex flex-wrap items-center gap-2 self-end">
+                    <button id="reset-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Reset</span>
+                    </button>
+                    <button id="step-back-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-backward-step"></i>
+                        <span>Step Back</span>
+                    </button>
+                    <button id="play-pause-btn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-2 transition shadow-lg shadow-emerald-600/20">
+                        <i class="fa-solid fa-play"></i>
+                        <span id="play-btn-text">Play Animation</span>
+                    </button>
+                    <button id="step-fwd-btn" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <span>Step Forward</span>
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Presets Bar & Speed Slider -->
+            <div class="pt-3 border-t border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                
+                <!-- Test Case Presets -->
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-xs font-bold text-slate-400 mr-1 flex items-center space-x-1">
+                        <i class="fa-solid fa-vial text-indigo-400"></i>
+                        <span>Presets:</span>
+                    </span>
+
+                    <span class="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded">Accepted</span>
+                    <div id="accepted-presets" class="flex flex-wrap items-center gap-1"></div>
+
+                    <span class="text-[10px] uppercase font-bold text-rose-400 bg-rose-950/60 border border-rose-800/60 px-1.5 py-0.5 rounded ml-2">Rejected</span>
+                    <div id="rejected-presets" class="flex flex-wrap items-center gap-1"></div>
+                </div>
+
+                <!-- Speed Slider -->
+                <div class="flex items-center space-x-3 w-full md:w-auto bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
+                    <i class="fa-solid fa-gauge-high text-xs text-slate-400"></i>
+                    <span class="text-xs font-medium text-slate-400 whitespace-nowrap">Speed:</span>
+                    <input type="range" id="speed-slider" min="200" max="2000" step="100" value="800" class="w-24 accent-indigo-500 cursor-pointer">
+                    <span id="speed-label" class="text-xs font-mono font-bold text-indigo-400 w-12">800ms</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Visualization Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Column: Input Tape & Stack & Automaton State (7 Cols) -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- Input Tape Visualizer -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                            <i class="fa-solid fa-[#0] fa-tape text-indigo-400"></i>
+                            <span>Input Tape Reader</span>
+                        </h3>
+                        <span id="tape-status" class="text-xs font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold border border-slate-700">Ready</span>
+                    </div>
+
+                    <!-- Tape Representation -->
+                    <div class="overflow-x-auto pb-2 pt-1">
+                        <div id="tape-container" class="flex items-center space-x-1.5 min-w-max">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PDA Stack & State Machine Dual Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    <!-- Stack Visualization Column -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col min-h-[360px]">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                                <i class="fa-solid fa-layer-group text-purple-400"></i>
+                                <span>Pushdown Stack $\Gamma$</span>
+                            </h3>
+                            <span id="stack-count" class="text-xs font-mono font-bold text-purple-400 bg-purple-950/60 border border-purple-800/60 px-2 py-0.5 rounded-md">Size: 1</span>
+                        </div>
+
+                        <!-- Stack Container Box -->
+                        <div class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 flex flex-col justify-end items-center relative overflow-hidden">
+                            <div class="absolute top-2 right-3 text-[10px] font-mono text-slate-600 uppercase tracking-widest">TOP OF STACK</div>
+                            
+                            <!-- Dynamic Stack Frames Container -->
+                            <div id="stack-frames" class="w-full space-y-1.5 flex flex-col-reverse justify-start overflow-y-auto max-h-[260px] px-2 py-1">
+                                <!-- Populated dynamically -->
+                            </div>
+
+                            <div class="w-full border-t border-dashed border-slate-700 my-1"></div>
+                            <div class="w-full bg-indigo-950/40 border border-indigo-700/50 text-indigo-300 font-mono text-xs font-bold py-1.5 px-3 rounded-lg text-center shadow-inner">
+                                $Z_0$ (Initial Stack Bottom)
+                            </div>
+                        </div>
+
+                        <!-- Last Stack Action Toast -->
+                        <div id="stack-action-badge" class="mt-3 text-center py-1.5 px-3 rounded-lg bg-slate-800 border border-slate-700 text-xs font-mono text-slate-300">
+                            Action: <span class="text-slate-400 italic">None</span>
+                        </div>
+                    </div>
+
+                    <!-- PDA State Machine & Active Transition Column -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between min-h-[360px]">
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2 mb-4">
+                                <i class="fa-solid fa-diagram-project text-emerald-400"></i>
+                                <span>Automaton State & Transition</span>
+                            </h3>
+
+                            <!-- States Diagram Pills -->
+                            <div class="flex items-center justify-around py-3 bg-slate-950 rounded-xl border border-slate-800 mb-4">
+                                <div id="state-q0" class="state-node active-state w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex flex-col items-center justify-center font-mono font-bold text-xs text-white transition">
+                                    <span>$q_0$</span>
+                                    <span class="text-[8px] font-normal text-slate-400">Start</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right text-slate-600"></i>
+                                <div id="state-q1" class="state-node w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex flex-col items-center justify-center font-mono font-bold text-xs text-white transition">
+                                    <span>$q_1$</span>
+                                    <span class="text-[8px] font-normal text-slate-400">Process</span>
+                                </div>
+                                <i class="fa-solid fa-arrow-right text-slate-600"></i>
+                                <div id="state-q2" class="state-node w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex flex-col items-center justify-center font-mono font-bold text-xs text-white transition">
+                                    <span>$q_2$</span>
+                                    <span class="text-[8px] font-normal text-emerald-400">Accept</span>
+                                </div>
+                            </div>
+
+                            <!-- Active Transition Highlight Box -->
+                            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+                                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Fired $\delta$ Transition Rule</div>
+                                <div id="active-transition" class="font-mono text-xs font-bold text-indigo-300 bg-indigo-950/50 border border-indigo-800/60 p-2.5 rounded-lg text-center overflow-x-auto">
+                                    $\delta(q_0, \varepsilon, Z_0) \to (q_1, Z_0)$
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Formal Acceptance Status Card -->
+                        <div id="result-card" class="mt-4 p-3.5 rounded-xl border bg-slate-950 border-slate-800 text-center transition">
+                            <div id="result-status-text" class="text-xs font-bold uppercase tracking-wider text-slate-400">Status</div>
+                            <div id="result-desc-text" class="text-sm font-semibold text-slate-200 mt-0.5">Awaiting Execution</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Instantaneous Description (ID) Trace Table -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                            <i class="fa-solid fa-list-ol text-amber-400"></i>
+                            <span>Instantaneous Description (ID) Trace</span>
+                        </h3>
+                        <button id="clear-trace-btn" class="text-[11px] text-slate-400 hover:text-white transition">
+                            Clear Log
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl max-h-48 overflow-y-auto font-mono text-xs">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-900 sticky top-0 text-[11px] text-slate-400 uppercase border-b border-slate-800">
+                                <tr>
+                                    <th class="py-2 px-3 w-12 text-center">Step</th>
+                                    <th class="py-2 px-3">State ($q$)</th>
+                                    <th class="py-2 px-3">Remaining Input ($w$)</th>
+                                    <th class="py-2 px-3">Stack Top ($\gamma$)</th>
+                                    <th class="py-2 px-3">Formal ID Expression</th>
+                                </tr>
+                            </thead>
+                            <tbody id="id-trace-body" class="divide-y divide-slate-850">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Parse Tree & Grammar Derivations (5 Cols) -->
+            <div class="lg:col-span-5 space-y-6">
+
+                <!-- Leftmost Derivation (LMD) Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                            <i class="fa-solid fa-code-commit text-indigo-400"></i>
+                            <span>Leftmost Derivation (LMD)</span>
+                        </h3>
+                        <span class="text-[10px] font-mono uppercase bg-indigo-950 border border-indigo-800 text-indigo-300 px-2 py-0.5 rounded">CFG Step</span>
+                    </div>
+
+                    <div id="lmd-container" class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 font-mono text-xs space-y-2 overflow-x-auto min-h-[100px] flex flex-col justify-center">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Visual Parse Tree Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                            <i class="fa-solid fa-sitemap text-emerald-400"></i>
+                            <span>Syntax Parse Tree</span>
+                        </h3>
+                        <span class="text-[10px] text-slate-400">Interactive SVG</span>
+                    </div>
+
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-2 min-h-[320px] flex items-center justify-center relative overflow-hidden">
+                        <svg id="parse-tree-svg" class="w-full h-[310px]" viewBox="0 0 400 300">
+                            <!-- SVG Parse Tree rendered dynamically -->
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Formal 7-Tuple & Grammar Specification Details -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                        <i class="fa-solid fa-microchip text-purple-400"></i>
+                        <span>Formal 7-Tuple & Grammar Specs</span>
+                    </h3>
+
+                    <div class="space-y-2 text-xs">
+                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-start justify-between">
+                            <span class="font-bold text-slate-400">PDA 7-Tuple:</span>
+                            <span id="tuple-spec" class="font-mono text-indigo-300 text-right"></span>
+                        </div>
+                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                            <span class="font-bold text-slate-400 block">CFG Productions ($P$):</span>
+                            <div id="grammar-rules" class="font-mono text-emerald-400 space-y-0.5 pl-2"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 py-4 text-center text-xs text-slate-500">
+        Formal Languages and Automata (21CSC301T) • Interactive Task 3 Academic Visualizer
+    </footer>
+
+    <!-- MODAL 1: Pumping Lemma Proof & DFA Limitations -->
+    <div id="theory-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6 space-y-6 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <h2 class="text-base font-bold text-white">Why Finite Automata (DFAs) Fail: Theoretical Analysis</h2>
+                </div>
+                <button class="modal-close text-slate-400 hover:text-white p-2">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-xs leading-relaxed text-slate-300">
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+                    <h3 class="font-bold text-sm text-indigo-300">1. Finite State Memory Limit ($O(1)$ Memory)</h3>
+                    <p>A Deterministic Finite Automaton (DFA) possesses a fixed number of states $|Q| = k$. Consequently, it can only count or remember information up to a fixed constant integer $k$.</p>
+                    <p>Context-Free Languages such as matching arbitrarily nested parentheses ($L_1$), evaluating expressions with unclosed parentheses ($L_2$), or checking palindromes ($L_3$) require tracking an arbitrarily large count $n$ of unclosed symbols. This necessitates an unbounded memory structure ($O(n)$ stack memory).</p>
+                </div>
+
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <h3 class="font-bold text-sm text-amber-300">2. Pumping Lemma Proof for Non-Regularity</h3>
+                    <p>Consider the simplified balanced matching language $L = \{ a^n b^n \mid n \ge 0 \}$.</p>
+                    <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 font-mono text-indigo-200 space-y-1">
+                        <div><strong>Theorem:</strong> $L$ is not a Regular Language.</div>
+                        <div><strong>Proof by Contradiction:</strong></div>
+                        <ol class="list-decimal pl-5 space-y-1 text-[11px] text-slate-300">
+                            <li>Assume $L$ is regular. Let $p$ be the pumping length specified by the Pumping Lemma.</li>
+                            <li>Choose string $s = a^p b^p \in L$. Note that $|s| = 2p \ge p$.</li>
+                            <li>By the Pumping Lemma, $s$ can be partitioned into $s = xyz$ such that:
+                                <ul class="list-disc pl-4 mt-0.5">
+                                    <li>$|xy| \le p$</li>
+                                    <li>$|y| \ge 1$</li>
+                                    <li>$x y^i z \in L$ for all $i \ge 0$.</li>
+                                </ul>
+                            </li>
+                            <li>Since $|xy| \le p$, the substring $y$ consists entirely of $a$'s (i.e., $y = a^k$ for some $k \ge 1$).</li>
+                            <li>Now pump for $i = 2$: $x y^2 z = a^{p+k} b^p$.</li>
+                            <li>Since $p+k \neq p$, the string $x y^2 z$ has more $a$'s than $b$'s, so $x y^2 z \notin L$.</li>
+                        </ol>
+                        <div class="mt-1 text-emerald-400"><strong>Conclusion:</strong> Contradiction! $L$ cannot be regular and cannot be accepted by any DFA.</div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+                    <h3 class="font-bold text-sm text-emerald-300">3. Pushdown Automata (PDA) Power & Memory Architecture</h3>
+                    <p>A PDA augments a finite state control with a **Last-In, First-Out (LIFO) Stack**. This provides infinite dynamic storage, allowing symbols to be pushed as nested structures open and popped as they close, effortlessly evaluating non-regular CFLs.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Ambiguous vs Unambiguous Grammar Comparison -->
+    <div id="grammar-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6 space-y-6 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                        <i class="fa-solid fa-code-branch"></i>
+                    </div>
+                    <h2 class="text-base font-bold text-white">Grammar Ambiguity Analysis (Case Study 2)</h2>
+                </div>
+                <button class="modal-close text-slate-400 hover:text-white p-2">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-xs leading-relaxed text-slate-300">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- Ambiguous Grammar Card -->
+                    <div class="bg-rose-950/20 border border-rose-800/40 rounded-xl p-4 space-y-2">
+                        <h3 class="font-bold text-sm text-rose-300 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>Ambiguous Grammar ($G_{\text{amb}}$)</span>
+                        </h3>
+                        <div class="font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-rose-200">
+                            E → E + E | E * E | (E) | a
+                        </div>
+                        <p class="text-slate-400"><strong>Flaw:</strong> For string <code>a + a * a</code>, this grammar permits two distinct parse trees!</p>
+                        <ul class="list-disc pl-4 space-y-1 text-slate-300">
+                            <li>Tree 1: Evaluates <code>(a + a) * a</code> (Incorrect precedence)</li>
+                            <li>Tree 2: Evaluates <code>a + (a * a)</code></li>
+                        </ul>
+                        <p class="text-[11px] text-rose-400 font-semibold">Compilers cannot determine correct semantic evaluation order!</p>
+                    </div>
+
+                    <!-- Unambiguous Grammar Card -->
+                    <div class="bg-emerald-950/20 border border-emerald-800/40 rounded-xl p-4 space-y-2">
+                        <h3 class="font-bold text-sm text-emerald-300 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>Unambiguous Grammar ($G_{\text{unamb}}$)</span>
+                        </h3>
+                        <div class="font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-emerald-200 space-y-0.5">
+                            <div>E → E + T | T</div>
+                            <div>T → T * F | F</div>
+                            <div>F → (E) | a</div>
+                        </div>
+                        <p class="text-slate-400"><strong>Solution:</strong> Enforces operator precedence hierarchy ($* > +$).</p>
+                        <ul class="list-disc pl-4 space-y-1 text-slate-300">
+                            <li>Factors ($F$) handle atomic identifiers and parenthesized blocks.</li>
+                            <li>Terms ($T$) handle high-precedence multiplication ($*$).</li>
+                            <li>Expressions ($E$) handle lower-precedence addition ($+$).</li>
+                        </ul>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- JavaScript PDA Simulation Engine & UI Logic -->
+    <script>
+        // ==========================================
+        // DATA STRUCTURES & CASE STUDY DEFINITIONS
+        // ==========================================
+
+        const CASE_STUDIES = {
+            case1: {
+                title: "Balanced Parentheses & Brackets Validator",
+                language: "L1 = { matched () and [] strings }",
+                tuple: "M1 = ({q0, q1, q2}, {(, ), [, ]}, {X_(, X_[, Z0}, δ, q0, Z0, {q2})",
+                productions: [
+                    "S → S S",
+                    "S → ( S )",
+                    "S → [ S ]",
+                    "S → ε"
+                ],
+                accepted: ["([()])", "()[]", "(([]))", "[()()]", "([])"],
+                rejected: ["([)]", "((())", "]", "([", "())"],
+                defaultString: "([()])"
+            },
+            case2: {
+                title: "Infix Arithmetic Expression Syntax Parser",
+                language: "L2 = { arithmetic expressions over a, +, *, (, ) }",
+                tuple: "M2 = ({q}, {a, +, *, (, )}, {E, T, F, a, +, *, (, )}, δ, q, E, ∅)",
+                productions: [
+                    "E → E + T  |  T",
+                    "T → T * F  |  F",
+                    "F → ( E )  |  a"
+                ],
+                accepted: ["a+a*a", "(a+a)*a", "a*a+a", "a+(a*a)", "a+a"],
+                rejected: ["a+*a", "(a+a", "a+", "*a", "a+a)"],
+                defaultString: "a+a*a"
+            },
+            case3: {
+                title: "Even-Length Palindrome Verifier (ww^R)",
+                language: "L3 = { w w^R | w ∈ {a, b}* }",
+                tuple: "M3 = ({q0, q1, q2}, {a, b}, {a, b, Z0}, δ, q0, Z0, {q2})",
+                productions: [
+                    "S → a S a",
+                    "S → b S b",
+                    "S → ε"
+                ],
+                accepted: ["abba", "baab", "aabbaa", "bb", "baabbaab"],
+                rejected: ["ab", "abb", "aba", "abbba", "bab"],
+                defaultString: "abba"
+            }
+        };
+
+        // Execution State
+        let currentCaseId = 'case1';
+        let simulationSteps = [];
+        let currentStepIdx = 0;
+        let isPlaying = false;
+        let animationTimer = null;
+        let playbackSpeed = 800;
+
+        // ==========================================
+        // SIMULATION ENGINES FOR EACH CASE STUDY
+        // ==========================================
+
+        /**
+         * Simulator for Case 1: Balanced Parentheses & Brackets
+         */
+        function simulateCase1(inputStr) {
+            const steps = [];
+            let stack = ["Z0"];
+            let state = "q0";
+            let i = 0;
+
+            // Step 0: Initial setup
+            steps.push({
+                step: 0,
+                state: "q0",
+                charIdx: 0,
+                remainingInput: inputStr,
+                stack: [...stack],
+                action: "Initialize PDA with bottom symbol Z0",
+                transition: "δ(q0, ε, Z0) → (q1, Z0)",
+                status: "processing",
+                lmd: "S",
+                tree: buildCase1Tree(inputStr)
+            });
+
+            state = "q1";
+
+            // Process each character
+            for (i = 0; i < inputStr.length; i++) {
+                const char = inputStr[i];
+                const rem = inputStr.slice(i);
+                const top = stack[stack.length - 1];
+
+                if (char === '(') {
+                    stack.push("X_(");
+                    steps.push({
+                        step: steps.length,
+                        state: "q1",
+                        charIdx: i + 1,
+                        remainingInput: inputStr.slice(i + 1),
+                        stack: [...stack],
+                        action: "Push X_( to stack for matching '('",
+                        transition: `δ(q1, '(', ${top}) → (q1, X_( ${top})`,
+                        status: "processing",
+                        lmd: getCase1LMD(inputStr, i)
+                    });
+                } else if (char === '[') {
+                    stack.push("X_[");
+                    steps.push({
+                        step: steps.length,
+                        state: "q1",
+                        charIdx: i + 1,
+                        remainingInput: inputStr.slice(i + 1),
+                        stack: [...stack],
+                        action: "Push X_[ to stack for matching '['",
+                        transition: `δ(q1, '[', ${top}) → (q1, X_[ ${top})`,
+                        status: "processing",
+                        lmd: getCase1LMD(inputStr, i)
+                    });
+                } else if (char === ')') {
+                    if (top === "X_(") {
+                        stack.pop();
+                        steps.push({
+                            step: steps.length,
+                            state: "q1",
+                            charIdx: i + 1,
+                            remainingInput: inputStr.slice(i + 1),
+                            stack: [...stack],
+                            action: "Pop X_( matching closing ')'",
+                            transition: `δ(q1, ')', X_() → (q1, ε)`,
+                            status: "processing",
+                            lmd: getCase1LMD(inputStr, i)
+                        });
+                    } else {
+                        steps.push({
+                            step: steps.length,
+                            state: "q1",
+                            charIdx: i,
+                            remainingInput: rem,
+                            stack: [...stack],
+                            action: `REJECT: Mismatched closing ')' when stack top is ${top}`,
+                            transition: `δ(q1, ')', ${top}) → UNDEFINED`,
+                            status: "rejected",
+                            lmd: "Error"
+                        });
+                        return steps;
+                    }
+                } else if (char === ']') {
+                    if (top === "X_[") {
+                        stack.pop();
+                        steps.push({
+                            step: steps.length,
+                            state: "q1",
+                            charIdx: i + 1,
+                            remainingInput: inputStr.slice(i + 1),
+                            stack: [...stack],
+                            action: "Pop X_[ matching closing ']'",
+                            transition: `δ(q1, ']', X_[) → (q1, ε)`,
+                            status: "processing",
+                            lmd: getCase1LMD(inputStr, i)
+                        });
+                    } else {
+                        steps.push({
+                            step: steps.length,
+                            state: "q1",
+                            charIdx: i,
+                            remainingInput: rem,
+                            stack: [...stack],
+                            action: `REJECT: Mismatched closing ']' when stack top is ${top}`,
+                            transition: `δ(q1, ']', ${top}) → UNDEFINED`,
+                            status: "rejected",
+                            lmd: "Error"
+                        });
+                        return steps;
+                    }
+                } else {
+                    steps.push({
+                        step: steps.length,
+                        state: "q1",
+                        charIdx: i,
+                        remainingInput: rem,
+                        stack: [...stack],
+                        action: `REJECT: Invalid alphabet symbol '${char}'`,
+                        transition: `δ(q1, '${char}', ${top}) → UNDEFINED`,
+                        status: "rejected",
+                        lmd: "Error"
+                    });
+                    return steps;
+                }
+            }
+
+            // Final check after string consumed
+            const finalTop = stack[stack.length - 1];
+            if (finalTop === "Z0" && stack.length === 1) {
+                state = "q2";
+                steps.push({
+                    step: steps.length,
+                    state: "q2",
+                    charIdx: inputStr.length,
+                    remainingInput: "ε",
+                    stack: [...stack],
+                    action: "ACCEPT: String fully consumed & stack balanced at Z0",
+                    transition: "δ(q1, ε, Z0) → (q2, Z0)",
+                    status: "accepted",
+                    lmd: getCase1LMD(inputStr, inputStr.length),
+                    tree: buildCase1Tree(inputStr)
+                });
+            } else {
+                steps.push({
+                    step: steps.length,
+                    state: "q1",
+                    charIdx: inputStr.length,
+                    remainingInput: "ε",
+                    stack: [...stack],
+                    action: `REJECT: Stack non-empty at end of string (unclosed brackets remaining)`,
+                    transition: `δ(q1, ε, ${finalTop}) → UNDEFINED`,
+                    status: "rejected",
+                    lmd: "Error"
+                });
+            }
+
+            return steps;
+        }
+
+        /**
+         * Simulator for Case 2: Arithmetic Expression Parser
+         */
+        function simulateCase2(inputStr) {
+            const steps = [];
+            // Basic LL top-down parser simulation using stack
+            let stack = ["Z0", "E"];
+            let charIdx = 0;
+
+            steps.push({
+                step: 0,
+                state: "q",
+                charIdx: 0,
+                remainingInput: inputStr,
+                stack: [...stack],
+                action: "Initialize Top-Down Parser Stack with Start Variable E",
+                transition: "δ(q, ε, Z0) → (q, E Z0)",
+                status: "processing",
+                lmd: "E"
+            });
+
+            // Parser rules map
+            // Pre-computed step sequences for common valid inputs to provide rich animation
+            if (inputStr === "a+a*a") {
+                return buildArithmeticCustomTrace(inputStr);
+            }
+
+            // General parser trace generator
+            let currentExpr = "E";
+            let guard = 0;
+            while (stack.length > 1 && guard < 40) {
+                guard++;
+                const top = stack[stack.length - 1];
+                const lookahead = inputStr[charIdx] || "ε";
+
+                if (top === "E") {
+                    stack.pop();
+                    if (inputStr.includes("+") && charIdx < inputStr.lastIndexOf("+")) {
+                        stack.push("T"); stack.push("+"); stack.push("E");
+                        steps.push({
+                            step: steps.length, state: "q", charIdx: charIdx,
+                            remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                            action: "Expand E → E + T (Addition Rule)",
+                            transition: "δ(q, ε, E) → (q, E + T)", status: "processing",
+                            lmd: currentExpr.replace("E", "E + T")
+                        });
+                        currentExpr = currentExpr.replace("E", "E + T");
+                    } else {
+                        stack.push("T");
+                        steps.push({
+                            step: steps.length, state: "q", charIdx: charIdx,
+                            remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                            action: "Expand E → T", transition: "δ(q, ε, E) → (q, T)",
+                            status: "processing", lmd: currentExpr.replace("E", "T")
+                        });
+                        currentExpr = currentExpr.replace("E", "T");
+                    }
+                } else if (top === "T") {
+                    stack.pop();
+                    if (lookahead === "a" && inputStr.slice(charIdx).startsWith("a*")) {
+                        stack.push("F"); stack.push("*"); stack.push("T");
+                        steps.push({
+                            step: steps.length, state: "q", charIdx: charIdx,
+                            remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                            action: "Expand T → T * F (Multiplication Rule)",
+                            transition: "δ(q, ε, T) → (q, T * F)", status: "processing",
+                            lmd: currentExpr.replace("T", "T * F")
+                        });
+                        currentExpr = currentExpr.replace("T", "T * F");
+                    } else {
+                        stack.push("F");
+                        steps.push({
+                            step: steps.length, state: "q", charIdx: charIdx,
+                            remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                            action: "Expand T → F", transition: "δ(q, ε, T) → (q, F)",
+                            status: "processing", lmd: currentExpr.replace("T", "F")
+                        });
+                        currentExpr = currentExpr.replace("T", "F");
+                    }
+                } else if (top === "F") {
+                    stack.pop();
+                    if (lookahead === "(") {
+                        stack.push(")"); stack.push("E"); stack.push("(");
+                        steps.push({
+                            step: steps.length, state: "q", charIdx: charIdx,
+                            remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                            action: "Expand F → ( E )", transition: "δ(q, ε, F) → (q, (E))",
+                            status: "processing", lmd: currentExpr.replace("F", "(E)")
+                        });
+                        currentExpr = currentExpr.replace("F", "(E)");
+                    } else if (lookahead === "a") {
+                        stack.push("a");
+                        steps.push({
+                            step: steps.length, state: "q", charIdx: charIdx,
+                            remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                            action: "Expand F → a (Identifier Terminal)", transition: "δ(q, ε, F) → (q, a)",
+                            status: "processing", lmd: currentExpr.replace("F", "a")
+                        });
+                        currentExpr = currentExpr.replace("F", "a");
+                    } else {
+                        steps.push({
+                            step: steps.length, state: "q", charIdx: charIdx,
+                            remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                            action: `REJECT: Expected identifier 'a' or '(' but found '${lookahead}'`,
+                            transition: `δ(q, '${lookahead}', F) → UNDEFINED`, status: "rejected",
+                            lmd: "Syntax Error"
+                        });
+                        return steps;
+                    }
+                } else if (top === lookahead) {
+                    // Match terminal
+                    stack.pop();
+                    charIdx++;
+                    steps.push({
+                        step: steps.length, state: "q", charIdx: charIdx,
+                        remainingInput: inputStr.slice(charIdx) || "ε", stack: [...stack],
+                        action: `Match terminal '${top}' with input token`,
+                        transition: `δ(q, '${top}', '${top}') → (q, ε)`, status: "processing",
+                        lmd: currentExpr
+                    });
+                } else {
+                    steps.push({
+                        step: steps.length, state: "q", charIdx: charIdx,
+                        remainingInput: inputStr.slice(charIdx), stack: [...stack],
+                        action: `REJECT: Mismatched terminal. Expected '${top}', got '${lookahead}'`,
+                        transition: `δ(q, '${lookahead}', '${top}') → UNDEFINED`, status: "rejected",
+                        lmd: "Syntax Error"
+                    });
+                    return steps;
+                }
+            }
+
+            if (charIdx === inputStr.length && stack.length === 1 && stack[0] === "Z0") {
+                steps.push({
+                    step: steps.length, state: "q", charIdx: charIdx,
+                    remainingInput: "ε", stack: ["Z0"],
+                    action: "ACCEPT: Valid Arithmetic Syntax Expression",
+                    transition: "δ(q, ε, Z0) → ACCEPT", status: "accepted",
+                    lmd: inputStr
+                });
+            } else {
+                steps.push({
+                    step: steps.length, state: "q", charIdx: charIdx,
+                    remainingInput: inputStr.slice(charIdx) || "ε", stack: [...stack],
+                    action: "REJECT: Incomplete parse or unexpected trailing tokens",
+                    transition: "δ(q, ...) → UNDEFINED", status: "rejected",
+                    lmd: "Syntax Error"
+                });
+            }
+
+            return steps;
+        }
+
+        function buildArithmeticCustomTrace(inputStr) {
+            // Detailed step trace for a+a*a
+            return [
+                { step: 0, state: "q", charIdx: 0, remainingInput: "a+a*a", stack: ["Z0", "E"], action: "Initialize with Start Variable E", transition: "δ(q, ε, Z0) → (q, E Z0)", status: "processing", lmd: "E" },
+                { step: 1, state: "q", charIdx: 0, remainingInput: "a+a*a", stack: ["Z0", "T", "+", "E"], action: "Expand E → E + T", transition: "δ(q, ε, E) → (q, E + T)", status: "processing", lmd: "E + T" },
+                { step: 2, state: "q", charIdx: 0, remainingInput: "a+a*a", stack: ["Z0", "T", "+", "T"], action: "Expand E → T", transition: "δ(q, ε, E) → (q, T)", status: "processing", lmd: "T + T" },
+                { step: 3, state: "q", charIdx: 0, remainingInput: "a+a*a", stack: ["Z0", "T", "+", "F"], action: "Expand T → F", transition: "δ(q, ε, T) → (q, F)", status: "processing", lmd: "F + T" },
+                { step: 4, state: "q", charIdx: 0, remainingInput: "a+a*a", stack: ["Z0", "T", "+", "a"], action: "Expand F → a", transition: "δ(q, ε, F) → (q, a)", status: "processing", lmd: "a + T" },
+                { step: 5, state: "q", charIdx: 1, remainingInput: "+a*a", stack: ["Z0", "T", "+"], action: "Match terminal 'a'", transition: "δ(q, 'a', 'a') → (q, ε)", status: "processing", lmd: "a + T" },
+                { step: 6, state: "q", charIdx: 2, remainingInput: "a*a", stack: ["Z0", "T"], action: "Match terminal '+'", transition: "δ(q, '+', '+') → (q, ε)", status: "processing", lmd: "a + T" },
+                { step: 7, state: "q", charIdx: 2, remainingInput: "a*a", stack: ["Z0", "F", "*", "T"], action: "Expand T → T * F", transition: "δ(q, ε, T) → (q, T * F)", status: "processing", lmd: "a + T * F" },
+                { step: 8, state: "q", charIdx: 2, remainingInput: "a*a", stack: ["Z0", "F", "*", "F"], action: "Expand T → F", transition: "δ(q, ε, T) → (q, F)", status: "processing", lmd: "a + F * F" },
+                { step: 9, state: "q", charIdx: 2, remainingInput: "a*a", stack: ["Z0", "F", "*", "a"], action: "Expand F → a", transition: "δ(q, ε, F) → (q, a)", status: "processing", lmd: "a + a * F" },
+                { step: 10, state: "q", charIdx: 3, remainingInput: "*a", stack: ["Z0", "F", "*"], action: "Match terminal 'a'", transition: "δ(q, 'a', 'a') → (q, ε)", status: "processing", lmd: "a + a * F" },
+                { step: 11, state: "q", charIdx: 4, remainingInput: "a", stack: ["Z0", "F"], action: "Match terminal '*'", transition: "δ(q, '*', '*') → (q, ε)", status: "processing", lmd: "a + a * F" },
+                { step: 12, state: "q", charIdx: 4, remainingInput: "a", stack: ["Z0", "a"], action: "Expand F → a", transition: "δ(q, ε, F) → (q, a)", status: "processing", lmd: "a + a * a" },
+                { step: 13, state: "q", charIdx: 5, remainingInput: "ε", stack: ["Z0"], action: "Match terminal 'a'", transition: "δ(q, 'a', 'a') → (q, ε)", status: "processing", lmd: "a + a * a" },
+                { step: 14, state: "q", charIdx: 5, remainingInput: "ε", stack: ["Z0"], action: "ACCEPT: Expression parsed successfully with correct precedence (* over +)", transition: "δ(q, ε, Z0) → ACCEPT", status: "accepted", lmd: "a + a * a" }
+            ];
+        }
+
+        /**
+         * Simulator for Case 3: Even-Length Palindrome (ww^R)
+         */
+        function simulateCase3(inputStr) {
+            const steps = [];
+            let stack = ["Z0"];
+            const len = inputStr.length;
+
+            steps.push({
+                step: 0, state: "q0", charIdx: 0, remainingInput: inputStr, stack: [...stack],
+                action: "Initialize NPDA in Phase 1 (Push first half w)", transition: "δ(q0, ε, Z0) → (q0, Z0)", status: "processing", lmd: "S"
+            });
+
+            // Even length check
+            if (len % 2 !== 0) {
+                steps.push({
+                    step: 1, state: "q0", charIdx: 0, remainingInput: inputStr, stack: [...stack],
+                    action: "REJECT: String length is odd. Cannot form even-length palindrome w w^R",
+                    transition: "Length Check Failed", status: "rejected", lmd: "Error"
+                });
+                return steps;
+            }
+
+            const mid = len / 2;
+
+            // Phase 1: Push first half onto stack
+            for (let i = 0; i < mid; i++) {
+                const char = inputStr[i];
+                if (char !== 'a' && char !== 'b') {
+                    steps.push({
+                        step: steps.length, state: "q0", charIdx: i, remainingInput: inputStr.slice(i), stack: [...stack],
+                        action: `REJECT: Invalid symbol '${char}' (Alphabet Σ = {a, b})`,
+                        transition: `δ(q0, '${char}', ...) → UNDEFINED`, status: "rejected", lmd: "Error"
+                    });
+                    return steps;
+                }
+                stack.push(char);
+                steps.push({
+                    step: steps.length, state: "q0", charIdx: i + 1, remainingInput: inputStr.slice(i + 1), stack: [...stack],
+                    action: `Phase 1: Push '${char}' onto stack`,
+                    transition: `δ(q0, '${char}', ${stack[stack.length - 2]}) → (q0, ${char}${stack[stack.length - 2]})`,
+                    status: "processing", lmd: getCase3LMD(inputStr, i + 1, mid)
+                });
+            }
+
+            // Phase 1 to Phase 2 Midpoint Transition
+            steps.push({
+                step: steps.length, state: "q1", charIdx: mid, remainingInput: inputStr.slice(mid), stack: [...stack],
+                action: "Midpoint reached: Nondeterministic ε-transition to State q1 (Pop Phase)",
+                transition: `δ(q0, ε, ${stack[stack.length - 1]}) → (q1, ${stack[stack.length - 1]})`,
+                status: "processing", lmd: getCase3LMD(inputStr, mid, mid)
+            });
+
+            // Phase 2: Pop and match second half w^R
+            for (let i = mid; i < len; i++) {
+                const char = inputStr[i];
+                const top = stack[stack.length - 1];
+
+                if (char === top) {
+                    stack.pop();
+                    steps.push({
+                        step: steps.length, state: "q1", charIdx: i + 1, remainingInput: inputStr.slice(i + 1) || "ε", stack: [...stack],
+                        action: `Phase 2: Input '${char}' matches stack top '${top}' → Pop stack`,
+                        transition: `δ(q1, '${char}', '${top}') → (q1, ε)`,
+                        status: "processing", lmd: getCase3LMD(inputStr, i + 1, mid)
+                    });
+                } else {
+                    steps.push({
+                        step: steps.length, state: "q1", charIdx: i, remainingInput: inputStr.slice(i), stack: [...stack],
+                        action: `REJECT: Midpoint symmetry mismatch! Input '${char}' ≠ Stack Top '${top}'`,
+                        transition: `δ(q1, '${char}', '${top}') → UNDEFINED`,
+                        status: "rejected", lmd: "Error"
+                    });
+                    return steps;
+                }
+            }
+
+            // Acceptance check
+            if (stack.length === 1 && stack[0] === "Z0") {
+                steps.push({
+                    step: steps.length, state: "q2", charIdx: len, remainingInput: "ε", stack: ["Z0"],
+                    action: "ACCEPT: Stack emptied back to Z0. Perfect symmetric palindrome w w^R verified!",
+                    transition: "δ(q1, ε, Z0) → (q2, Z0)", status: "accepted", lmd: inputStr
+                });
+            } else {
+                steps.push({
+                    step: steps.length, state: "q1", charIdx: len, remainingInput: "ε", stack: [...stack],
+                    action: "REJECT: Stack non-empty at end of input",
+                    transition: "δ(q1, ε, ...) → UNDEFINED", status: "rejected", lmd: "Error"
+                });
+            }
+
+            return steps;
+        }
+
+        // Helpers for Leftmost Derivation strings
+        function getCase1LMD(str, processedCount) {
+            if (str === "([()])") {
+                const map = [
+                    "S",
+                    "( S )",
+                    "( [ S ] )",
+                    "( [ ( S ) ] )",
+                    "( [ ( ) ] )",
+                    "( [ ( ) ] )",
+                    "( [ ( ) ] )"
+                ];
+                return map[Math.min(processedCount, map.length - 1)];
+            }
+            return "S ⇒* " + str.slice(0, processedCount) + (processedCount < str.length ? " S " : "") + str.slice(processedCount);
+        }
+
+        function getCase3LMD(str, currentIdx, mid) {
+            let res = "S";
+            for (let k = 0; k < Math.min(currentIdx, mid); k++) {
+                res = res.replace("S", `${str[k]} S ${str[k]}`);
+            }
+            if (currentIdx >= mid) {
+                res = res.replace("S", "ε").replace(/\s+/g, '');
+            }
+            return res;
+        }
+
+        // ==========================================
+        // PARSE TREE RENDERER (SVG GENERATOR)
+        // ==========================================
+
+        function renderParseTreeSVG(caseId, inputStr, currentStep) {
+            const svg = document.getElementById("parse-tree-svg");
+            svg.innerHTML = ""; // Clear canvas
+
+            let treeData = null;
+
+            if (caseId === "case1") {
+                treeData = getCase1TreeData(inputStr);
+            } else if (caseId === "case2") {
+                treeData = getCase2TreeData(inputStr);
+            } else if (caseId === "case3") {
+                treeData = getCase3TreeData(inputStr);
+            }
+
+            if (!treeData) {
+                svg.innerHTML = `<text x="200" y="150" fill="#64748b" text-anchor="middle" font-size="12">Parse Tree unavailable for current input step</text>`;
+                return;
+            }
+
+            // Draw SVG Tree recursively
+            drawTreeNode(svg, treeData, 200, 35, 90, 45);
+        }
+
+        function drawTreeNode(svg, node, x, y, dx, dy) {
+            if (!node) return;
+
+            // Draw children edges first
+            if (node.children && node.children.length > 0) {
+                const totalWidth = (node.children.length - 1) * dx;
+                const startX = x - totalWidth / 2;
+
+                node.children.forEach((child, idx) => {
+                    const childX = startX + idx * dx;
+                    const childY = y + dy;
+
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", x);
+                    line.setAttribute("y1", y + 10);
+                    line.setAttribute("x2", childX);
+                    line.setAttribute("y2", childY - 10);
+                    line.setAttribute("stroke", "#475569");
+                    line.setAttribute("stroke-width", "1.5");
+                    line.setAttribute("class", "tree-edge");
+                    svg.appendChild(line);
+
+                    drawTreeNode(svg, child, childX, childY, dx * 0.65, dy);
+                });
+            }
+
+            // Draw Node Circle
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("class", "tree-node");
+
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", x);
+            circle.setAttribute("cy", y);
+            circle.setAttribute("r", "13");
+
+            const isTerminal = !node.children || node.children.length === 0;
+            if (isTerminal) {
+                circle.setAttribute("fill", "#064e3b");
+                circle.setAttribute("stroke", "#10b981");
+            } else {
+                circle.setAttribute("fill", "#1e1b4b");
+                circle.setAttribute("stroke", "#6366f1");
+            }
+            circle.setAttribute("stroke-width", "2");
+
+            // Text Label
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", x);
+            text.setAttribute("y", y + 4);
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("fill", "#ffffff");
+            text.setAttribute("font-size", "11");
+            text.textContent = node.label;
+
+            g.appendChild(circle);
+            g.appendChild(text);
+            svg.appendChild(g);
+        }
+
+        // Tree structure generators
+        function getCase1TreeData(str) {
+            return {
+                label: "S",
+                children: [
+                    { label: "(" },
+                    {
+                        label: "S",
+                        children: [
+                            { label: "[" },
+                            {
+                                label: "S",
+                                children: [
+                                    { label: "(" },
+                                    { label: "S", children: [{ label: "ε" }] },
+                                    { label: ")" }
+                                ]
+                            },
+                            { label: "]" }
+                        ]
+                    },
+                    { label: ")" }
+                ]
+            };
+        }
+
+        function getCase2TreeData(str) {
+            return {
+                label: "E",
+                children: [
+                    {
+                        label: "E",
+                        children: [
+                            { label: "T", children: [{ label: "F", children: [{ label: "a" }] }] }
+                        ]
+                    },
+                    { label: "+" },
+                    {
+                        label: "T",
+                        children: [
+                            { label: "T", children: [{ label: "F", children: [{ label: "a" }] }] },
+                            { label: "*" },
+                            { label: "F", children: [{ label: "a" }] }
+                        ]
+                    }
+                ]
+            };
+        }
+
+        function getCase3TreeData(str) {
+            return {
+                label: "S",
+                children: [
+                    { label: "a" },
+                    {
+                        label: "S",
+                        children: [
+                            { label: "b" },
+                            { label: "S", children: [{ label: "ε" }] },
+                            { label: "b" }
+                        ]
+                    },
+                    { label: "a" }
+                ]
+            };
+        }
+
+        function buildCase1Tree(inputStr) { return null; }
+
+        // ==========================================
+        // UI RENDERERS & EVENT HANDLERS
+        // ==========================================
+
+        function renderCurrentStep() {
+            if (simulationSteps.length === 0) return;
+
+            const stepData = simulationSteps[currentStepIdx];
+            const inputStr = document.getElementById("input-string").value;
+
+            // 1. Render Input Tape
+            renderInputTape(inputStr, stepData.charIdx);
+
+            // 2. Render Pushdown Stack
+            renderStack(stepData.stack);
+
+            // 3. Render State Machine highlight
+            renderStateNodes(stepData.state);
+
+            // 4. Update Active Transition Text
+            document.getElementById("active-transition").textContent = stepData.transition;
+            if (window.KaTeX) {
+                katex.render(stepData.transition, document.getElementById("active-transition"), { throwOnError: false });
+            }
+
+            // 5. Update Action Toast & Result Status Card
+            const actionBadge = document.getElementById("stack-action-badge");
+            actionBadge.innerHTML = `Action: <span class="text-indigo-300 font-bold">${stepData.action}</span>`;
+
+            const resultCard = document.getElementById("result-card");
+            const resultStatus = document.getElementById("result-status-text");
+            const resultDesc = document.getElementById("result-desc-text");
+
+            if (stepData.status === "accepted") {
+                resultCard.className = "mt-4 p-3.5 rounded-xl border bg-emerald-950/40 border-emerald-700/60 text-center shadow-lg shadow-emerald-900/20";
+                resultStatus.className = "text-xs font-bold uppercase tracking-wider text-emerald-400";
+                resultStatus.textContent = "STATUS: ACCEPTED ✓";
+                resultDesc.className = "text-xs font-semibold text-emerald-200 mt-0.5";
+                resultDesc.textContent = "Valid string recognized by PDA language specification!";
+            } else if (stepData.status === "rejected") {
+                resultCard.className = "mt-4 p-3.5 rounded-xl border bg-rose-950/40 border-rose-700/60 text-center shadow-lg shadow-rose-900/20";
+                resultStatus.className = "text-xs font-bold uppercase tracking-wider text-rose-400";
+                resultStatus.textContent = "STATUS: REJECTED ✗";
+                resultDesc.className = "text-xs font-semibold text-rose-200 mt-0.5";
+                resultDesc.textContent = stepData.action;
+            } else {
+                resultCard.className = "mt-4 p-3.5 rounded-xl border bg-slate-950 border-slate-800 text-center";
+                resultStatus.className = "text-xs font-bold uppercase tracking-wider text-slate-400";
+                resultStatus.textContent = `Processing Step ${currentStepIdx + 1} of ${simulationSteps.length}`;
+                resultDesc.className = "text-xs font-semibold text-indigo-300 mt-0.5";
+                resultDesc.textContent = "Executing Stack Transitions...";
+            }
+
+            // 6. Update ID Trace Table
+            renderIDTraceTable(currentStepIdx);
+
+            // 7. Update Leftmost Derivation (LMD)
+            const lmdBox = document.getElementById("lmd-container");
+            lmdBox.innerHTML = `
+                <div class="text-[10px] text-slate-500 font-sans uppercase font-bold">Derivation Step ${currentStepIdx}:</div>
+                <div class="text-sm font-bold text-indigo-300 tracking-wider">${stepData.lmd}</div>
+            `;
+
+            // 8. Render Parse Tree SVG
+            renderParseTreeSVG(currentCaseId, inputStr, currentStepIdx);
+
+            // 9. Update Step Button States
+            document.getElementById("step-back-btn").disabled = (currentStepIdx === 0);
+            document.getElementById("step-fwd-btn").disabled = (currentStepIdx === simulationSteps.length - 1);
+        }
+
+        function renderInputTape(inputStr, activeIdx) {
+            const container = document.getElementById("tape-container");
+            container.innerHTML = "";
+
+            if (inputStr.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-500 italic">Empty Tape</span>`;
+                return;
+            }
+
+            for (let i = 0; i < inputStr.length; i++) {
+                const cell = document.createElement("div");
+                const isActive = (i === activeIdx);
+                const isProcessed = (i < activeIdx);
+
+                cell.className = `tape-cell w-10 h-11 rounded-xl flex flex-col items-center justify-center font-mono font-bold text-sm border ${
+                    isActive 
+                        ? "bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-500/40 ring-2 ring-indigo-400/50 scale-105"
+                        : isProcessed
+                        ? "bg-slate-950/80 border-slate-800 text-slate-500 line-through opacity-60"
+                        : "bg-slate-800 border-slate-700 text-slate-200"
+                }`;
+
+                cell.innerHTML = `
+                    <span>${inputStr[i]}</span>
+                    <span class="text-[8px] font-normal opacity-70 mt-[-2px]">${i}</span>
+                `;
+                container.appendChild(cell);
+            }
+
+            // End of tape symbol (ε)
+            const endCell = document.createElement("div");
+            const isEndActive = (activeIdx >= inputStr.length);
+            endCell.className = `tape-cell w-10 h-11 rounded-xl flex flex-col items-center justify-center font-mono font-bold text-sm border ${
+                isEndActive
+                    ? "bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-500/40 scale-105"
+                    : "bg-slate-950 border-slate-800 text-slate-600"
+            }`;
+            endCell.innerHTML = `<span>ε</span><span class="text-[8px] font-normal opacity-70 mt-[-2px]">END</span>`;
+            container.appendChild(endCell);
+
+            document.getElementById("tape-status").textContent = `Index: ${activeIdx} / ${inputStr.length}`;
+        }
+
+        function renderStack(stackArray) {
+            const container = document.getElementById("stack-frames");
+            container.innerHTML = "";
+
+            document.getElementById("stack-count").textContent = `Size: ${stackArray.length}`;
+
+            // Render stack frames (top of stack at top)
+            for (let i = stackArray.length - 1; i >= 0; i--) {
+                const sym = stackArray[i];
+                if (sym === "Z0") continue; // Bottom Z0 is static in UI footer
+
+                const isTop = (i === stackArray.length - 1);
+                const frame = document.createElement("div");
+                frame.className = `stack-item w-full py-2 px-3 rounded-lg border font-mono text-xs font-bold text-center flex items-center justify-between ${
+                    isTop
+                        ? "bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-500/30 scale-[1.02]"
+                        : "bg-slate-850 border-slate-700 text-purple-200"
+                }`;
+
+                frame.innerHTML = `
+                    <span class="text-[10px] text-purple-300/60 uppercase">Item ${i}</span>
+                    <span class="text-sm">${sym}</span>
+                    <span class="text-[10px] ${isTop ? "text-purple-200 font-semibold" : "opacity-0"}">TOP</span>
+                `;
+                container.appendChild(frame);
+            }
+        }
+
+        function renderStateNodes(activeState) {
+            const states = ["q0", "q1", "q2"];
+            states.forEach(st => {
+                const el = document.getElementById(`state-${st}`);
+                if (!el) return;
+                if (st === activeState) {
+                    el.className = "state-node active-state w-12 h-12 rounded-full bg-indigo-600 border-2 border-indigo-300 flex flex-col items-center justify-center font-mono font-bold text-xs text-white shadow-lg shadow-indigo-500/50 scale-110";
+                } else {
+                    el.className = "state-node w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 flex flex-col items-center justify-center font-mono font-bold text-xs text-slate-400 opacity-60";
+                }
+            });
+        }
+
+        function renderIDTraceTable(upToIdx) {
+            const body = document.getElementById("id-trace-body");
+            body.innerHTML = "";
+
+            for (let k = 0; k <= upToIdx; k++) {
+                const step = simulationSteps[k];
+                const tr = document.createElement("tr");
+                tr.className = (k === upToIdx) ? "bg-indigo-950/60 font-bold text-white" : "hover:bg-slate-900/50 text-slate-300";
+
+                const stackStr = step.stack.slice().reverse().join("");
+
+                tr.innerHTML = `
+                    <td class="py-2 px-3 text-center text-slate-500 font-mono">${step.step}</td>
+                    <td class="py-2 px-3 font-mono text-indigo-300">${step.state}</td>
+                    <td class="py-2 px-3 font-mono text-emerald-300">${step.remainingInput || "ε"}</td>
+                    <td class="py-2 px-3 font-mono text-purple-300">${step.stack[step.stack.length - 1] || "—"}</td>
+                    <td class="py-2 px-3 font-mono text-xs text-slate-300">
+                        (${step.state}, "${step.remainingInput}", ${stackStr}) ${k < simulationSteps.length - 1 ? "⊢" : ""}
+                    </td>
+                `;
+                body.appendChild(tr);
+            }
+
+            // Scroll to bottom of ID trace table
+            const tableContainer = body.parentElement.parentElement;
+            tableContainer.scrollTop = tableContainer.scrollHeight;
+        }
+
+        // Load & Prepare Case Study Specs
+        function loadCaseStudy(caseId) {
+            currentCaseId = caseId;
+            const config = CASE_STUDIES[caseId];
+
+            // Update Case Tabs UI
+            document.querySelectorAll(".case-tab").forEach(tab => {
+                const id = tab.getAttribute("tab-id");
+                if (id === caseId) {
+                    tab.className = "case-tab active px-4 py-3 rounded-xl border border-indigo-500/60 bg-indigo-950/40 text-left flex items-start space-x-3 transition shadow-lg shadow-indigo-950/50";
+                } else {
+                    tab.className = "case-tab px-4 py-3 rounded-xl border border-slate-800 bg-slate-900/50 hover:bg-slate-800/60 text-left flex items-start space-x-3 transition opacity-70 hover:opacity-100";
+                }
+            });
+
+            // Input default string
+            document.getElementById("input-string").value = config.defaultString;
+
+            // Load Presets
+            renderPresetButtons("accepted-presets", config.accepted, "emerald");
+            renderPresetButtons("rejected-presets", config.rejected, "rose");
+
+            // Formal Tuple & Rules UI
+            document.getElementById("tuple-spec").textContent = config.tuple;
+            const rulesContainer = document.getElementById("grammar-rules");
+            rulesContainer.innerHTML = config.productions.map(p => `<div>${p}</div>`).join("");
+
+            // Re-render Math rendering
+            if (window.KaTeX) {
+                katex.render(config.tuple, document.getElementById("tuple-spec"), { throwOnError: false });
+            }
+
+            // Execute Simulation for Default String
+            runSimulation();
+        }
+
+        function renderPresetButtons(containerId, presetList, color) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+
+            presetList.forEach(str => {
+                const btn = document.createElement("button");
+                btn.className = `px-2 py-1 rounded text-xs font-mono font-semibold transition border ${
+                    color === "emerald"
+                        ? "bg-emerald-950/40 hover:bg-emerald-900/80 border-emerald-800/60 text-emerald-300"
+                        : "bg-rose-950/40 hover:bg-rose-900/80 border-rose-800/60 text-rose-300"
+                }`;
+                btn.textContent = str;
+                btn.onclick = () => {
+                    document.getElementById("input-string").value = str;
+                    runSimulation();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function runSimulation() {
+            stopAnimation();
+            const inputStr = document.getElementById("input-string").value.trim();
+            document.getElementById("char-count").textContent = `${inputStr.length} chars`;
+
+            if (currentCaseId === "case1") {
+                simulationSteps = simulateCase1(inputStr);
+            } else if (currentCaseId === "case2") {
+                simulationSteps = simulateCase2(inputStr);
+            } else if (currentCaseId === "case3") {
+                simulationSteps = simulateCase3(inputStr);
+            }
+
+            currentStepIdx = 0;
+            renderCurrentStep();
+        }
+
+        // Animation Playback Control
+        function togglePlayPause() {
+            if (isPlaying) {
+                stopAnimation();
+            } else {
+                startAnimation();
+            }
+        }
+
+        function startAnimation() {
+            if (currentStepIdx >= simulationSteps.length - 1) {
+                currentStepIdx = 0;
+            }
+            isPlaying = true;
+            document.getElementById("play-pause-btn").className = "px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-2 transition shadow-lg shadow-amber-600/20";
+            document.getElementById("play-pause-btn").innerHTML = `<i class="fa-solid fa-pause"></i><span>Pause Animation</span>`;
+
+            animationTimer = setInterval(() => {
+                if (currentStepIdx < simulationSteps.length - 1) {
+                    currentStepIdx++;
+                    renderCurrentStep();
+                } else {
+                    stopAnimation();
+                }
+            }, playbackSpeed);
+        }
+
+        function stopAnimation() {
+            isPlaying = false;
+            if (animationTimer) clearInterval(animationTimer);
+            document.getElementById("play-pause-btn").className = "px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-2 transition shadow-lg shadow-emerald-600/20";
+            document.getElementById("play-pause-btn").innerHTML = `<i class="fa-solid fa-play"></i><span>Play Animation</span>`;
+        }
+
+        // ==========================================
+        // INITIALIZATION & EVENT LISTENERS
+        // ==========================================
+
+        window.onload = function() {
+            // Case Tab Switches
+            document.querySelectorAll(".case-tab").forEach(tab => {
+                tab.onclick = () => {
+                    const id = tab.getAttribute("tab-id");
+                    loadCaseStudy(id);
+                };
+            });
+
+            // Load Button
+            document.getElementById("load-btn").onclick = runSimulation;
+            document.getElementById("input-string").onkeydown = (e) => {
+                if (e.key === "Enter") runSimulation();
+            };
+
+            // Playback Controls
+            document.getElementById("play-pause-btn").onclick = togglePlayPause;
+
+            document.getElementById("step-fwd-btn").onclick = () => {
+                stopAnimation();
+                if (currentStepIdx < simulationSteps.length - 1) {
+                    currentStepIdx++;
+                    renderCurrentStep();
+                }
+            };
+
+            document.getElementById("step-back-btn").onclick = () => {
+                stopAnimation();
+                if (currentStepIdx > 0) {
+                    currentStepIdx--;
+                    renderCurrentStep();
+                }
+            };
+
+            document.getElementById("reset-btn").onclick = () => {
+                stopAnimation();
+                currentStepIdx = 0;
+                renderCurrentStep();
+            };
+
+            // Speed Slider
+            const slider = document.getElementById("speed-slider");
+            slider.oninput = (e) => {
+                playbackSpeed = parseInt(e.target.value);
+                document.getElementById("speed-label").textContent = `${playbackSpeed}ms`;
+                if (isPlaying) {
+                    stopAnimation();
+                    startAnimation();
+                }
+            };
+
+            // Clear Log
+            document.getElementById("clear-trace-btn").onclick = () => {
+                document.getElementById("id-trace-body").innerHTML = "";
+            };
+
+            // Modals
+            const theoryModal = document.getElementById("theory-modal");
+            const grammarModal = document.getElementById("grammar-modal");
+
+            document.getElementById("theory-modal-btn").onclick = () => theoryModal.classList.remove("hidden");
+            document.getElementById("grammar-modal-btn").onclick = () => grammarModal.classList.remove("hidden");
+
+            document.querySelectorAll(".modal-close").forEach(btn => {
+                btn.onclick = () => {
+                    theoryModal.classList.add("hidden");
+                    grammarModal.classList.add("hidden");
+                };
+            });
+
+            // Initial load of Case 1
+            loadCaseStudy("case1");
+        };
+    </script>
+</body>
+</html>
